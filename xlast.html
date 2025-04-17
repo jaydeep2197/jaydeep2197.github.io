@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="gu">
+<head>
+    <meta charset="UTF-8">
+    <title>શાળા ID કાર્ડ જનરેટર</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #1e3c72;
+            --secondary-color: #2a5298;
+            --text-primary: #2c3e50;
+            --text-secondary: #34495e;
+            --card-bg: #ffffff;
+        }
+
+        body {
+            font-family: 'Noto Sans Gujarati', sans-serif;
+            background: #f0f4ff;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+            padding: 30px 0;
+            margin: 0;
+            font-size: 2em;
+        }
+
+        .upload-section {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            flex-wrap: wrap;
+            margin: 4px 0;
+        }
+
+        .action-btn {
+            background: #ffffff;
+            color: var(--primary-color);
+            padding: 12px 30px;
+            border-radius: 8px;
+            border: 2px solid var(--primary-color);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+        }
+
+        .action-btn:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 5px;
+            padding: 10px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 5px;
+            padding: 10px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            break-inside: avoid-page;
+        }
+
+        .school-name {
+            text-align: center;
+            color: var(--primary-color);
+            font-size: 0.95em;
+            margin-bottom: 2px;
+            font-weight: 600;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid var(--primary-color);
+        }
+
+        .logo, .photo {
+            width: 80px;
+            height: 80px;
+            border: 2px solid var(--primary-color);
+            border-radius: 8px;
+            background: #fff;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .logo img, .photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .title {
+            font-size: 1.3em;
+            color: var(--secondary-color);
+            text-align: center;
+            margin: 0 5px;
+            font-weight: 700;
+        }
+
+        .details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 5px;
+            margin-bottom: 5px;
+        }
+
+        .info-item {
+            display: flex;
+            gap: 5px;
+            align-items: baseline;
+        }
+
+        .info-label {
+            color: var(--primary-color);
+            font-weight: 600;
+            flex-shrink: 0;
+            font-size: 1em;
+        }
+
+        .info-value {
+            color: var(--text-secondary);
+            font-weight: 500;
+            word-break: break-word;
+            font-size: 0.98em;
+        }
+
+        .barcode-container {
+            text-align: center;
+            margin: 5px 0;
+            height: 50px;
+        }
+        
+        .barcode {
+            display: inline-block;
+            height: 100%;
+        }
+
+        .footer {
+            border-top: 1px dashed var(--primary-color);
+            padding-top: 2px;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.5em;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .no-photo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-secondary);
+            font-size: 0.9em;
+            padding: 10px;
+        }
+
+        #pdf-progress {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ffffff;
+            padding: 15px 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 1000;
+            display: none;
+        }
+
+        @media print {
+            body {
+                background: white !important;
+            }
+            .upload-section {
+                display: none !important;
+            }
+            .card {
+                box-shadow: none !important;
+                margin: 10px 0 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>શાળા ID કાર્ડ જનરેટર</h1>
+    
+    <div class="upload-section">
+        <label class="action-btn">
+            📷 લોગો અપલોડ
+            <input type="file" id="logoUpload" accept="image/*">
+        </label>
+        <label class="action-btn">
+            🖼️ ફોટોની ZIP
+            <input type="file" id="photoZip" accept=".zip">
+        </label>
+        <label class="action-btn">
+            📊 Excel ફાઇલ
+            <input type="file" id="excelUpload" accept=".xlsx, .xls">
+        </label>
+        <button class="action-btn" onclick="generatePDF()">📥 PDF/પ્રિન્ટ</button>
+    </div>
+
+    <div id="pdf-progress">
+        <div id="progress-text">પ્રગતિ: 0%</div>
+        <progress value="0" max="100" style="width: 200px;"></progress>
+    </div>
+
+    <div class="container" id="cards"></div>
+
+    <script>
+        let schoolLogo = null;
+        let photoMap = {};
+        let headerMap = {};
+        let schoolName = '';
+
+        // પ્રગતિ સૂચક
+        const showProgress = () => document.getElementById('pdf-progress').style.display = 'block';
+        const hideProgress = () => document.getElementById('pdf-progress').style.display = 'none';
+        const updateProgress = (current, total) => {
+            const percent = Math.round((current / total) * 100);
+            document.getElementById('progress-text').textContent = `પ્રગતિ: ${percent}%`;
+            document.querySelector('#pdf-progress progress').value = percent;
+        };
+
+        // ફાઇલ અપલોડ હેન્ડલર્સ
+        document.getElementById('logoUpload').addEventListener('change', function(e) {
+            const reader = new FileReader();
+            reader.onload = (e) => schoolLogo = e.target.result;
+            reader.readAsDataURL(e.target.files[0]);
+        });
+
+        document.getElementById('photoZip').addEventListener('change', async function(e) {
+            try {
+                const zip = await JSZip.loadAsync(e.target.files[0]);
+                photoMap = {};
+                for(const [filename, file] of Object.entries(zip.files)) {
+                    if(!file.dir && filename.match(/\.(jpe?g|png)$/i)) {
+                        const blob = await file.async('blob');
+                        photoMap[filename.split('/').pop()] = URL.createObjectURL(blob);
+                    }
+                }
+            } catch(error) {
+                alert('ZIP ભૂલ: ' + error.message);
+            }
+        });
+
+        document.getElementById('excelUpload').addEventListener('change', function(e) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
+                    processExcelSheet(workbook.Sheets[workbook.SheetNames[0]]);
+                } catch(error) {
+                    alert('Excel ભૂલ: ' + error.message);
+                }
+            };
+            reader.readAsArrayBuffer(e.target.files[0]);
+        });
+
+        // એક્સેલ પ્રોસેસિંગ
+        const processExcelSheet = (sheet) => {
+            const requiredHeaders = ['વિદ્યાર્થીનું નામ (ગુજરાતી)', 'જ.ર.નં','ધોરણ', 'જન્મ તારીખ','પિતાનું નામ','માતાનું  નામ','હાલનું સરનામું','મોબાઈલ', 'ફોટો'];
+            headerMap = {};
+            
+            const range = XLSX.utils.decode_range(sheet['!ref']);
+            for(let row = range.s.r; row <= range.e.r; row++) {
+                const rowData = XLSX.utils.sheet_to_json(sheet, {header: 1, range: row})[0];
+                if(rowData.filter(cell => requiredHeaders.includes(String(cell).trim())).length >= requiredHeaders.length) {
+                    requiredHeaders.forEach(header => {
+                        const index = rowData.findIndex(cell => String(cell).trim() === header);
+                        if(index !== -1) headerMap[header] = index;
+                    });
+                    schoolName = sheet['A1']?.v || 'શાળાનું નામ';
+                    generateCards(XLSX.utils.sheet_to_json(sheet, {header: 1, range: row + 1}));
+                    break;
+                }
+            }
+        };
+
+        // ID કાર્ડ જનરેશન
+        const generateCards = (data) => {
+            const cardsDiv = document.getElementById('cards');
+            cardsDiv.innerHTML = '';
+
+            data.forEach(row => {
+                const getValue = (header) => row[headerMap[header]]?.toString() || '';
+                
+                const cardHTML = `
+                    <div class="card">
+                        <div class="school-name">${schoolName}</div>
+                        <div class="header">
+                            <div class="logo">
+                                ${schoolLogo ? `<img src="${schoolLogo}" alt="લોગો">` : ''}
+                            </div>
+                            <div class="title">છાત્ર ઓળખપત્ર</div>
+                            <div class="photo">${getPhotoHTML(getValue('ફોટો'))}</div>
+                        </div>
+                        <div class="details">
+                            ${renderInfoItems(row)}
+                        </div>
+                        ${renderBarcode(getValue('બારકોડ'))}
+                        <div class="footer">આ ઓળખપત્ર ફક્ત શાળા કાર્યો માટે જ માન્ય છે</div>
+                    </div>
+                `;
+                cardsDiv.innerHTML += cardHTML;
+            });
+
+            initializeBarcodes();
+        };
+
+        // હેલ્પર ફંક્શન્સ
+        const getPhotoHTML = (photoFile) => {
+            const photoURL = photoMap[photoFile?.trim()];
+            return photoURL ? `<img src="${photoURL}" alt="ફોટો">` : 
+                `<div class="no-photo">${photoFile ? 'ફોટો મળ્યો નથી' : 'ફોટો નથી'}</div>`;
+        };
+
+        const renderInfoItems = (row) => [
+            {label: 'નામ', header: 'વિદ્યાર્થીનું નામ (ગુજરાતી)'},
+            {label: 'જ.ર.નં', header: 'જ.ર.નં'},
+            {label: 'ધોરણ', header: 'ધોરણ'},
+            {label: 'જન્મતારીખ', header: 'જન્મ તારીખ'},
+            {label: 'પિતાનું નામ', header: 'પિતાનું નામ'},
+            {label: 'માતાનું નામ', header: 'માતાનું  નામ'},
+            {label: 'સરનામું', header: 'હાલનું સરનામું'},
+            {label: 'મોબાઈલ', header: 'મોબાઈલ'}
+        ].map(item => `
+            <div class="info-item">
+                <span class="info-label">${item.label}:</span>
+                <span class="info-value">${row[headerMap[item.header]] || ''}</span>
+            </div>
+        `).join('');
+
+        const renderBarcode = (value) => value ? `
+            <div class="barcode-container">
+                <svg class="barcode" data-value="${value}"></svg>
+            </div>
+        ` : '';
+
+        const initializeBarcodes = () => {
+            document.querySelectorAll('.barcode').forEach(barcode => {
+                const value = barcode.dataset.value;
+                if(value?.trim()) JsBarcode(barcode, value, {format: "CODE128", height: 40});
+            });
+        };
+
+        // PDF જનરેશન
+      const generatePDF = async () => {
+    try {
+        showProgress();
+        const cards = document.querySelectorAll('.card');
+        if (!cards.length) throw new Error('પહેલા ID કાર્ડ જનરેટ કરો!');
+
+        const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+
+        const cardsPerPage = 8;
+        const cardWidth = 80;  // Width of each card in mm
+        const cardHeight = 40; // Height of each card in mm
+        const horizontalSpacing = 25; // Horizontal spacing between cards
+        const verticalSpacing = 30;   // Vertical spacing between cards
+        const marginLeft = 5;        // Left margin
+        const marginTop = 5;         // Top margin
+
+        for (let i = 0; i < cards.length; i++) {
+            const card = cards[i];
+
+            // Calculate position on the page
+            const positionInPage = i % cardsPerPage;
+            const row = Math.floor(positionInPage / 2);
+            const col = positionInPage % 2;
+
+            const x = marginLeft + col * (cardWidth + horizontalSpacing);
+            const y = marginTop + row * (cardHeight + verticalSpacing);
+
+            // Add a new page for every 8 cards, except before the first page
+            if (i > 0 && positionInPage === 0) {
+                pdf.addPage();
+            }
+
+            // Render the card to canvas
+            const canvas = await html2canvas(card, {
+                scale: 2,
+                useCORS: true,
+                onclone: (doc) => {
+                    doc.querySelectorAll('.barcode').forEach(barcode => {
+                        if (barcode.dataset.value) {
+                            JsBarcode(barcode, barcode.dataset.value, { format: "CODE128", height: 40 });
+                        }
+                    });
+                }
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+
+            // Calculate image dimensions to fit the card size
+            const imgProps = pdf.getImageProperties(imgData);
+            const pdfImgWidth = cardWidth;
+            const pdfImgHeight = (imgProps.height * pdfImgWidth) / imgProps.width;
+
+            // Add the image to the PDF
+            pdf.addImage(imgData, 'PNG', x, y, pdfImgWidth, pdfImgHeight);
+
+            updateProgress(i + 1, cards.length);
+        }
+
+        // Save the PDF
+        const filename = `ID_Cards_${new Date().toISOString().slice(0, 10)}.pdf`;
+        pdf.save(filename);
+
+    } catch (error) {
+        alert('PDF ભૂલ: ' + error.message);
+    } finally {
+        hideProgress();
+    }
+};
+    </script>
+</body>
+</html>
